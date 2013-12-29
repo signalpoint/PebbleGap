@@ -4,25 +4,26 @@
 Pebble.addEventListener("ready", function(e) {
     try {
       
-      /* Drupal Settings */
-      
+      /** Drupal Settings **/
       // Site Path, e.g. http://www.example.com (with no trailing slash)
-      Drupal.settings.site_path = "";
+      Drupal.settings.site_path = "http://www.tylerfrankenstein.com";
       
       // Initialize Drupal.
       drupal_bootstrap({
           success:function(data){
-            // Place your custom code here...
-            var msg = '';
+            
+            // PLACE YOUR CUSTOM CODE HERE...
+            
             if (Drupal.user.uid == 0) {
-              msg = "Hi, Anonymous user!";
+              // Anonymous user...
             }
             else {
-              msg = "Hi, " + Drupal.user.name + "!";
+              // Authenticated user...
             }
-            drupal_set_message(msg, {title:"Hello World"});
+            
           }
       });
+
     }
     catch (error) {
       console.log('Pebble.addEventListener - ready - ' + error);
@@ -35,7 +36,7 @@ Pebble.addEventListener("ready", function(e) {
  */
 Pebble.addEventListener("showConfiguration", function() {
     try {
-      var user_login = drupal_page_url('user_login.html');
+      var user_login = drupal_page_url('user.html');
       Pebble.openURL(user_login);
     }
     catch (error) {
@@ -48,19 +49,8 @@ Pebble.addEventListener("showConfiguration", function() {
  */
 Pebble.addEventListener("webviewclosed", function(e) {
     try {
-      var options = JSON.parse(decodeURIComponent(e.response));
-      switch (options.page) {
-        case 'user_login':
-          user_login({
-              "name":options.name,
-              "pass":options.pass,
-              success:function(data) {
-                drupal_set_message('You logged in ' + Drupal.user.name + '!');
-              }
-          });
-          break;
-        default:
-          break;
+      if (e.response) {
+        drupal_webviewclosed(JSON.parse(decodeURIComponent(e.response)));
       }
     }
     catch (error) {
@@ -69,10 +59,43 @@ Pebble.addEventListener("webviewclosed", function(e) {
 });
 
 /**
+ * The handler for Pebble's webviewclosed event listener.
+ */
+function drupal_webviewclosed(options) {
+  try {
+    switch (options.page) {
+      case 'user_login':
+        user_login({
+            "name":options.name,
+            "pass":options.pass,
+            success:function(data) {
+              drupal_set_message('You logged in ' + Drupal.user.name + '!');
+            }
+        });
+        break;
+      case 'user_register':
+        user_register({
+            "name":options.name,
+            "mail":options.mail,
+            success:function(data) {
+              drupal_set_message('Registered user #' + data.uid + '!');
+            }
+        });
+        break;
+      default:
+        break;
+    }
+  }
+  catch (error) {
+    console.log('drupal_webviewclosed - ' + error);
+  }
+}
+
+/**
  * pebble-drupal (https://github.com/signalpoint/pebble-drupal)
  */
 Drupal = {};
-Drupal.user = null;
+Drupal.user = drupal_user_defaults();
 
 /**
  * Default settings. Do not change values here, instead change the values in
@@ -95,6 +118,9 @@ function drupal_bootstrap(options) {
       drupal_set_message("The Drupal site_path is not set!");
     }
     else {
+      /*user_logout({
+          success:options.success
+      });*/
       // Call system connect and return to Pebble's "ready" event handler.
       system_connect({
           success:options.success
@@ -133,7 +159,6 @@ function user_login(options) {
         path:"user/login.json",
         data:"username=" + encodeURIComponent(options.name) + 
              "&password=" + encodeURIComponent(options.pass),
-        /*data:options.data,*/
         success:function(data){
           Drupal.user = data.user;
           options.success(data);
@@ -142,6 +167,41 @@ function user_login(options) {
   }
   catch (error) {
     console.log('user_login - ' + error);
+  }
+}
+// User Logout
+function user_logout(options) {
+  try {
+    Drupal.services.call({
+        method:"POST",
+        path:"user/logout.json",
+        success:function(data){
+          Drupal.user = drupal_user_defaults();
+          options.success(data);
+        }
+    });
+  }
+  catch (error) {
+    console.log('user_login - ' + error);
+  }
+}
+// User Register
+function user_register(options) {
+  try {
+    Drupal.services.call({
+        method:"POST",
+        path:"user/register.json",
+        data:"name=" + encodeURIComponent(options.name) + 
+             "&mail=" + encodeURIComponent(options.mail),
+        /*data:options.data,*/
+        success:function(data){
+          Drupal.user = data.user;
+          options.success(data);
+        }
+    });
+  }
+  catch (error) {
+    console.log('user_register - ' + error);
   }
 }
 /**
@@ -182,6 +242,16 @@ function drupal_set_message(message) {
 }
 
 /**
+ * Returns a default JSON object representing an anonymous Drupal user account.
+ */
+function drupal_user_defaults() {
+  return {
+    "uid":"0",
+    "roles":{"0":"anonymous user"}
+  };
+}
+
+/**
  * Drupal Services XMLHttpRequest Object
  */
 Drupal.services = {
@@ -198,19 +268,22 @@ Drupal.services = {
       
       // Request Success Handler
       request.onload = function(e) {
-        console.log('readyState = ' + request.readyState);
         if (request.readyState == 4) {
+          var title = "";
           switch (request.status) {
-            case 200:
-              console.log('OK!');
-              options.success(JSON.parse(request.responseText));
-              break;
-            case 404:
-              drupal_set_message(url, {title:"404 - Not Found!"});
-              break;
-            default:
-              console.log('request.status = ' + request.status); // not available until readyState is 4    
-              break;
+            case 200: title = "OK"; break;
+            case 401: title = "Unauthorized"; break;
+            case 404: title = "Not Found"; break;
+          }
+          var title = request.status + " - " + title;
+          console.log(title);
+          if (request.status != 200) {
+            // Not OK
+            drupal_set_message(url, {"title":title});
+          }
+          else {
+            // OK
+            options.success(JSON.parse(request.responseText));
           }
         }
         else {
