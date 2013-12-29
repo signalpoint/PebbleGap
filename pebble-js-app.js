@@ -6,7 +6,7 @@ Pebble.addEventListener("ready", function(e) {
       
       /** Drupal Settings **/
       // Site Path, e.g. http://www.example.com (with no trailing slash)
-      Drupal.settings.site_path = "http://www.tylerfrankenstein.com";
+      Drupal.settings.site_path = "";
       
       // Initialize Drupal.
       drupal_bootstrap({
@@ -19,6 +19,7 @@ Pebble.addEventListener("ready", function(e) {
             }
             else {
               // Authenticated user...
+              drupal_set_message("Hello, " + Drupal.user.name);
             }
             
           }
@@ -92,9 +93,10 @@ function drupal_webviewclosed(options) {
 }
 
 /**
- * pebble-drupal (https://github.com/signalpoint/pebble-drupal)
+ * Pebble + Drupal (https://github.com/signalpoint/pebble-drupal)
  */
 Drupal = {};
+Drupal.sessid = null;
 Drupal.user = drupal_user_defaults();
 
 /**
@@ -142,6 +144,7 @@ function system_connect(options) {
         method:"POST",
         path:"system/connect.json",
         success:function(data){
+          dpm(data);
           Drupal.user = data.user;
           options.success(data);
         }
@@ -161,7 +164,47 @@ function user_login(options) {
              "&password=" + encodeURIComponent(options.pass),
         success:function(data){
           Drupal.user = data.user;
-          options.success(data);
+          // Now that we are logged in, we need to get a new CSRF token.
+          var token_request = new XMLHttpRequest();
+          var token_url = Drupal.settings.site_path +
+                    Drupal.settings.base_path +
+                    '?q=services/session/token';
+          // Token Request Success Handler
+          token_request.onload = function(e) {
+            if (token_request.readyState == 4) {
+              var title = token_request.status + " - " +
+                http_status_code_title(token_request.status);
+              console.log(title);
+              if (token_request.status != 200) { // Not OK
+                drupal_set_message('user_login - ' + token_url, {"title":title});
+              }
+              else { // OK
+                // Save the token to local storage as sessid, set Drupal.sessid
+                // with the token, then return the user login data to the
+                // success function.
+                //token = JSON.parse(token_request.responseText);
+                token = token_request.responseText;
+                window.localStorage.setItem('sessid', token);
+                Drupal.sessid = token;
+                dpm('got new token after user login: ' + token);
+                options.success(data);
+              }
+            }
+            else {
+              console.log('user_login token_request.readyState = ' + token_request.readyState);
+            }
+          }
+          
+          // Open the token request.
+          token_request.open('GET', token_url, true);
+          
+          // Send the token request.
+          dpm('grabbing new token after user login...');
+          token_request.send(null);
+          
+          //Drupal.sessid = data.sessid;
+          //window.localStorage.setItem('sessid', data.sessid);
+          //options.success(data);
         }
     });
   }
@@ -177,6 +220,8 @@ function user_logout(options) {
         path:"user/logout.json",
         success:function(data){
           Drupal.user = drupal_user_defaults();
+          Drupal.sessid = null;
+          window.localStorage.removeItem('sessid');
           options.success(data);
         }
     });
@@ -193,7 +238,6 @@ function user_register(options) {
         path:"user/register.json",
         data:"name=" + encodeURIComponent(options.name) + 
              "&mail=" + encodeURIComponent(options.mail),
-        /*data:options.data,*/
         success:function(data){
           Drupal.user = data.user;
           options.success(data);
@@ -247,69 +291,185 @@ function drupal_set_message(message) {
 function drupal_user_defaults() {
   return {
     "uid":"0",
-    "roles":{"0":"anonymous user"}
+    "roles":{"1":"anonymous user"}
   };
 }
 
 /**
+ * Given an integer http status code, this will return the title of it.
+ */
+function http_status_code_title(status) {
+  try {
+    var title = "";
+    switch (status) {
+      case 200: title = "OK"; break;
+      case 401: title = "Unauthorized"; break;
+      case 404: title = "Not Found"; break;
+    }
+    return title;  
+  }
+  catch (error) {
+    console.log('http_status_code_title - ' + error);
+  }
+}
+
+/**
+ * Checks if the needle string, is in the haystack array. Returns true if it is
+ * found, false otherwise. Credit: http://stackoverflow.com/a/15276975/763010
+ */
+function in_array(needle, haystack) {
+  return (haystack.indexOf(needle) > -1);
+}
+
+/**
+ * Drupal Services
+ */
+Drupal.services = {};
+
+/**
  * Drupal Services XMLHttpRequest Object
  */
-Drupal.services = {
-  call:function(options) {
-    try {
-      
-      // Build the Request, URL and extract the HTTP method.
-      var request = new XMLHttpRequest();
-      var url = Drupal.settings.site_path + 
-                Drupal.settings.base_path + '?q=' +
-                Drupal.settings.endpoint + '/' + options.path;
-      var method = options.method;
-      console.log(method + ': ' + url);
-      
-      // Request Success Handler
-      request.onload = function(e) {
-        if (request.readyState == 4) {
-          var title = "";
-          switch (request.status) {
-            case 200: title = "OK"; break;
-            case 401: title = "Unauthorized"; break;
-            case 404: title = "Not Found"; break;
-          }
-          var title = request.status + " - " + title;
-          console.log(title);
-          if (request.status != 200) {
-            // Not OK
-            drupal_set_message(url, {"title":title});
-          }
-          else {
-            // OK
-            options.success(JSON.parse(request.responseText));
-          }
+Drupal.services.call = function(options) {
+  try {
+    // Build the Request, URL and extract the HTTP method.
+    var request = new XMLHttpRequest();
+    var url = Drupal.settings.site_path + 
+              Drupal.settings.base_path + '?q=' +
+              Drupal.settings.endpoint + '/' + options.path;
+    var method = options.method.toUpperCase();
+    console.log(method + ': ' + url);
+    
+    // Request Success Handler
+    request.onload = function(e) {
+      if (request.readyState == 4) {
+        var title = request.status + " - " +
+          http_status_code_title(request.status);
+        console.log(title);
+        if (request.status != 200) { // Not OK
+          drupal_set_message(url, {"title":title});
         }
-        else {
-          console.log('request.readyState = ' + request.readyState);
+        else { // OK
+          options.success(JSON.parse(request.responseText));
         }
       }
-      
-      // Open the request.
-      request.open(method, url, true);
-      
-      // Set any headers.
-      if (method.toUpperCase() == 'POST') {
-        request.setRequestHeader(
-          "Content-type",
-          "application/x-www-form-urlencoded"
-        );
+      else {
+        console.log('request.readyState = ' + request.readyState);
       }
-      
-      // Send the request.
-      if (typeof options.data !== 'undefined') { request.send(options.data); }
-      else { request.send(null); }
-      
     }
-    catch (error) {
-      console.log('Drupal.services - error - ' + error);
-    }
+    
+    // Generate Token and Make the Request.
+    Drupal.services.csrf_token(method, url, request, {
+        "path":options.path,
+        success:function(token){
+          
+          // Open the request.
+          request.open(method, url, true);
+          
+          // Set any headers.
+          if (method == 'POST') {
+            request.setRequestHeader(
+              "Content-type",
+              "application/x-www-form-urlencoded"
+            );
+          }
+    
+          if (token) {
+            dpm('Adding token to header: ' + token);
+            request.setRequestHeader("X-CSRF-Token", token);
+          }
+          if (typeof options.data !== 'undefined') {
+            request.send(options.data);
+          }
+          else { request.send(null); }      
+        }
+    });
+  }
+  catch (error) {
+    console.log('Drupal.services.call - error - ' + error);
   }
 };
 
+/**
+ * Drupal Services CSRF TOKEN
+ */
+Drupal.services.csrf_token = function(method, url, request, options) {
+  try {
+    var token = false;
+    dpm(options);
+    // Do we potentially need a token for this call? We most likely need one if
+    // the call option's type is not one of these types.
+    if (!in_array(method, ['GET', 'HEAD', 'OPTIONS', 'TRACE'])) {
+      // Anonymous users don't need the CSRF token, unless we're calling system
+      // connect, then we need to pass along the token if we have one.
+      if (Drupal.user.uid == 0 && options.path != 'system/connect.json') {
+        dpm(method + ' - anonymous token not needed');
+        options.success(false);
+        return;
+      }
+      // Is there a token available in local storage?
+      token = window.localStorage.getItem('sessid');
+      if (token) {
+        dpm('grabbed token from local storage: ' + token);
+      }
+      // If we don't already have a token, is there one on Drupal.sessid?
+      if (!token && Drupal.sessid) {
+        token = Drupal.sessid;
+        dpm('Grabbed token from drupal: ' + token);
+      }
+      // If we still don't have a token to use, let's grab one from Drupal.
+      if (!token) {
+        // Build the Request, URL and extract the HTTP method.
+        var token_request = new XMLHttpRequest();
+        var token_url = Drupal.settings.site_path +
+                  Drupal.settings.base_path +
+                  '?q=services/session/token';
+        // Token Request Success Handler
+        token_request.onload = function(e) {
+          if (token_request.readyState == 4) {
+            var title = token_request.status + " - " +
+              http_status_code_title(token_request.status);
+            console.log('TOKEN REQUEST COMPLETE: ' + title);
+            if (token_request.status != 200) { // Not OK
+              drupal_set_message(token_url, {"title":title});
+            }
+            else { // OK
+              // Save the token to local storage as sessid, set Drupal.sessid
+              // with the token, then return the token to the success function.
+              dpm(token_request.responseText);
+              token = token_request.responseText;
+              dpm('Grabbed a new token, saving it to local storage: ' + token);
+              window.localStorage.setItem('sessid', token);
+              Drupal.sessid = token;
+              options.success(token);
+            }
+          }
+          else {
+            console.log('token_request.readyState = ' + token_request.readyState);
+          }
+        }
+        
+        // Open the token request.
+        token_request.open('GET', token_url, true);
+        
+        // Send the token request.
+        dpm(token_url + ' - previous token not available, grabbing one...');
+        token_request.send(null);
+      }
+      else {
+        // We had a previous token available, let's use it.
+        dpm(method + ' - previous token available and being used');
+        Drupal.sessid = token;
+        options.success(token);
+      }
+    }
+    else {
+      dpm(method + ' - token not needed');
+      // This call's HTTP method doesn't need a token, so we return via the
+      // success function.
+      options.success(false);
+    }
+  }
+  catch (error) {
+    console.log('Drupal.services.call - error - ' + error);
+  }
+};
