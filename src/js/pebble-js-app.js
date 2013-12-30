@@ -1,12 +1,18 @@
 // Initialize the Drupal JSON object.
-Drupal = drupal_init();
+Drupal = drupal_init(); // Do not remove this line!
+
+/**
+ * Drupal Settings
+ */
+
+// Site Path, e.g. http://www.example.com (with no trailing slash)
+Drupal.settings.site_path = "http://www.tylerfrankenstein.com";
 
 /**
  * BEGIN: Custom Code
  */
 
-// Site Path, e.g. http://www.example.com (with no trailing slash)
-Drupal.settings.site_path = "http://www.tylerfrankenstein.com";
+// Place your custom code here... 
 
 /**
  * Implements hook_ready().
@@ -30,13 +36,13 @@ function pebble_button_click_handler(payload, options) {
       case 'down':
         break;
       case 'select':
-        var node = {
-          type:"article",
-          title:"Pebble Node"
-        };
-        node_save(node, {
-            success:function(data){
-              pebblegap_set_message(data.nid, {title:"Node saved!"});
+        node_load(1000, {
+            success:function(node){
+              dpm(node);
+              pebble_set_message(node.title, {title:"Node loaded!"});
+            },
+            error:function(xhr, status, message) {
+              console.log("Failed to load node, " + message);
             }
         });
         break;
@@ -51,6 +57,12 @@ function pebble_button_click_handler(payload, options) {
 /**
  * END: Custom Code
  */
+
+/*****************|
+ *                |
+ * PebbleGap Core |
+ *                |
+ *****************/
  
 /******************|
  *                 |
@@ -58,12 +70,28 @@ function pebble_button_click_handler(payload, options) {
  *                 |
  ******************/
 
+// To implement a PebbleGap hook, copy the hook's function template from below
+// and paste it into your custom code section above. Then replace the 'hook_'
+// with 'pebble_' in your function name.
+// 
+// For example, to implement hook_ready(), copy the hook_ready() function below,
+// paste it into your custom code section above, then change the pasted code's
+// function name from hook_ready to pebble_ready.
+
 /**
  * Implements hook_button_click_handler().
  */
 function hook_button_click_handler(payload, options) {
   try {
     console.log("Button Clicked: " + options.button);
+    switch (options.button) {
+      case 'up':
+        break;
+      case 'down':
+        break;
+      case 'select':
+        break;
+    }
   }
   catch(error) {
     console.log('pebble_button_click_handler - ' + error);
@@ -82,18 +110,12 @@ function hook_ready() {
     else {
       message = 'Hello ' + Drupal.user.name + '!';
     }
-    pebblegap_set_message(message);
+    pebble_set_message(message);
   }
   catch (error) {
     console.log('pebble_ready - ' + error);
   }
 }
-
-/*****************|
- *                |
- * PebbleGap Core |
- *                |
- *****************/
 
 /**
  * PebbleGap JSON object.
@@ -121,7 +143,7 @@ if (!Drupal.settings.pebble_module_directory) {
  */
 Pebble.addEventListener("appmessage", function(e) {
     try {
-      pebblegap_appmessage(e.payload);
+      pebble_appmessage(e.payload);
     }
     catch (error) {
       console.log('Pebble.addEventListener - appmessage - ' + error);
@@ -133,7 +155,7 @@ Pebble.addEventListener("appmessage", function(e) {
  */
 Pebble.addEventListener("ready", function(e) {
     try {
-      pebblegap_bootstrap({
+      pebble_bootstrap({
           success:function(data){
             var hook = 'pebble_ready';
             if (function_exists(hook)) {
@@ -155,10 +177,10 @@ Pebble.addEventListener("showConfiguration", function() {
     try {
       var url = '';
       if (Drupal.user.uid == 0) {
-        url = pebblegap_page_url('user.html');
+        url = pebble_page_url('user.html');
       }
       else {
-        url = pebblegap_page_url('user.html#account');
+        url = pebble_page_url('user.html#account');
       }
       dpm(url);
       Pebble.openURL(url);
@@ -174,7 +196,7 @@ Pebble.addEventListener("showConfiguration", function() {
 Pebble.addEventListener("webviewclosed", function(e) {
     try {
       if (e.response) {
-        pebblegap_webviewclosed(JSON.parse(decodeURIComponent(e.response)));
+        pebble_webviewclosed(JSON.parse(decodeURIComponent(e.response)));
       }
     }
     catch (error) {
@@ -185,7 +207,7 @@ Pebble.addEventListener("webviewclosed", function(e) {
 /**
  * Handles Pebble's appmessage event listener.
  */
-function pebblegap_appmessage(payload) {
+function pebble_appmessage(payload) {
   try {
     // Determine the payload, and if a hook is implemented, call it.
     var button = false;
@@ -204,18 +226,18 @@ function pebblegap_appmessage(payload) {
     }
   }
   catch (error) {
-    console.log('pebblegap_appmessage - ' + error);
+    console.log('pebble_appmessage - ' + error);
   }
 }
 
 /**
  * The bootstrap function for Pebble and Drupal.
  */
-function pebblegap_bootstrap(options) {
+function pebble_bootstrap(options) {
   try {
     // Make sure the site_path is set.
     if (Drupal.settings.site_path == "") {
-      pebblegap_set_message("The Drupal site_path is not set!");
+      pebble_set_message("The Drupal site_path is not set!");
     }
     else {
       // Call system connect and return to Pebble's "ready" event handler.
@@ -225,21 +247,21 @@ function pebblegap_bootstrap(options) {
     }
   }
   catch (error) {
-    console.log('pebblegap_bootstrap - ' + error);
+    console.log('pebble_bootstrap - ' + error);
   }
 };
 
 /**
  *
  */
-function pebblegap_page_url(page) {
+function pebble_page_url(page) {
   try {
     return Drupal.settings.site_path + 
          Drupal.settings.base_path +
          Drupal.settings.pebble_module_directory + '/pages/' + page;
   }
   catch (error) {
-    console.log('pebblegap_page_url - ' + error);
+    console.log('pebble_page_url - ' + error);
   }
 }
 
@@ -248,7 +270,7 @@ function pebblegap_page_url(page) {
  * optionally pass in a second argument as a JSON object, with these properties:
  *   title - a string to display as the title of the notification.
  */
-function pebblegap_set_message(message) {
+function pebble_set_message(message) {
   try {
     var title = "Message";
     if (arguments[1]) {
@@ -258,14 +280,14 @@ function pebblegap_set_message(message) {
     Pebble.showSimpleNotificationOnPebble(title, message);
   }
   catch (error) {
-    console.log('pebblegap_set_message - ' + error);
+    console.log('pebble_set_message - ' + error);
   }
 }
 
 /**
  * The handler for Pebble's webviewclosed event listener.
  */
-function pebblegap_webviewclosed(options) {
+function pebble_webviewclosed(options) {
   try {
     switch (options.page) {
       case 'user_login':
@@ -273,7 +295,7 @@ function pebblegap_webviewclosed(options) {
             "name":options.name,
             "pass":options.pass,
             success:function(data) {
-              pebblegap_set_message('You logged in ' + Drupal.user.name + '!');
+              pebble_set_message('You logged in ' + Drupal.user.name + '!');
             }
         });
         break;
@@ -282,29 +304,36 @@ function pebblegap_webviewclosed(options) {
             "name":options.name,
             "mail":options.mail,
             success:function(data) {
-              pebblegap_set_message('Registered user #' + data.uid + '!');
+              pebble_set_message('Registered user #' + data.uid + '!');
             }
         });
         break;
       case 'user_logout':
         user_logout({
             success:function(data) {
-              pebblegap_set_message('Logged out!');
+              pebble_set_message('Logged out!');
             }
         });
         break;
     }
   }
   catch (error) {
-    console.log('pebblegap_webviewclosed - ' + error);
+    console.log('pebble_webviewclosed - ' + error);
   }
 }
 
-/**************|
- *             |
- * Drupal Core |
- *             |
- ***************/
+/**********|
+ *         |
+ * jDrupal |
+ *         |
+ **********/
+
+// All of the code below is a copy of jDrupal.js available here:
+//   https://github.com/easystreet3/DrupalJS/blob/7.x-1.x/jDrupal.js
+//
+// Since the PebbleKit Javascript Framework currently only allows one .js file
+// to power a Pebble App, we must copy the contents of the jDrupal.js and paste
+// it below.
 
 /**
  * Add additional properties to the Drupal JSON object.
@@ -354,13 +383,52 @@ function entity_assemble_data(entity_type, bundle, entity, options) {
     for (var property in entity) {
       console.log(property);
       if (entity.hasOwnProperty(property)) {
-        data += property + '=' + encodeURIComponent(entity[property]) + '&';
+        var type = typeof entity[property];
+        // Assemble field items.
+        if (type === 'object') {
+          for (var language in entity[property]) {
+            if (entity[property].hasOwnProperty(language)) {
+              for (var delta in entity[property][language]) {
+                if (entity[property][language].hasOwnProperty(delta)) {
+                  for (var value in entity[property][language][delta]) {
+                    if (entity[property][language][delta].hasOwnProperty(value)) {
+                      data += property +
+                        '[' + language + '][' + delta + '][' + value + ']=' +
+                        encodeURIComponent(entity[property][language][delta][value]) + '&';   
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        // Assemble flat properties.
+        else {            
+          data += property + '=' + encodeURIComponent(entity[property]) + '&';
+        }
       }
     }
     if (data != '') { data = data.substring(0, data.length - 1); }
     return data;
   }
   catch (error) { console.log('entity_assemble_data - ' + error); }
+}
+
+/**
+ *
+ */
+function entity_load(entity_type, ids, options) {
+  try {
+    switch(entity_type) {
+      case 'node':
+        node_retrieve(ids, options);
+        break;
+      default:
+        console.log('WARNING: entity_load - unsupported type: ' + entity_type);
+        break;
+    }
+  }
+  catch (error) { console.log('entity_load - ' + error); }
 }
 
 /**
@@ -431,6 +499,16 @@ function language_default() {
 /**
  *
  */
+function node_load(nid, options) {
+  try {
+    entity_load('node', nid, options);
+  }
+  catch (error) { console.log('node_load - ' + error); }
+}
+
+/**
+ *
+ */
 function node_save(node, options) {
   try {
     entity_save('node', node.type, node, options);
@@ -465,10 +543,32 @@ function entity_create(entity_type, bundle, entity, options) {
         data:entity_assemble_data(entity_type, bundle, entity, options),
         success:function(data){
           options.success(data);
+        },
+        error:function(xhr, status, message) {
+          options.error(xhr, status, message);
         }
     });
   }
   catch (error) { console.log('entity_create - ' + error); }
+}
+
+/**
+ *
+ */
+function entity_retrieve(entity_type, ids, options) {
+  try {
+    Drupal.services.call({
+        method:options.method,
+        path:options.path,
+        success:function(data){
+          options.success(data);
+        },
+        error:function(xhr, status, message) {
+          options.error(xhr, status, message);
+        }
+    });
+  }
+  catch (error) { console.log('entity_retrieve - ' + error); }
 }
 
 /**
@@ -483,6 +583,18 @@ function node_create(node, options) {
   catch (error) { console.log('node_create - ' + error); }
 }
 
+/**
+ *
+ */
+function node_retrieve(ids, options) {
+  try {
+    options.method = "GET";
+    options.path = "node/" + ids + ".json";
+    entity_retrieve('node', ids, options);
+  }
+  catch (error) { console.log('node_retrieve - ' + error); }
+}
+
 // System Connect
 function system_connect(options) {
   try {
@@ -492,6 +604,9 @@ function system_connect(options) {
         success:function(data){
           Drupal.user = data.user;
           options.success(data);
+        },
+        error:function(xhr, status, message) {
+          options.error(xhr, status, message);
         }
     });
   }
@@ -551,6 +666,9 @@ function user_login(options) {
           //Drupal.sessid = data.sessid;
           //window.localStorage.setItem('sessid', data.sessid);
           //options.success(data);
+        },
+        error:function(xhr, status, message) {
+          options.error(xhr, status, message);
         }
     });
   }
@@ -569,6 +687,9 @@ function user_logout(options) {
           Drupal.sessid = null;
           window.localStorage.removeItem('sessid');
           options.success(data);
+        },
+        error:function(xhr, status, message) {
+          options.error(xhr, status, message);
         }
     });
   }
@@ -587,6 +708,9 @@ function user_register(options) {
         success:function(data){
           Drupal.user = data.user;
           options.success(data);
+        },
+        error:function(xhr, status, message) {
+          options.error(xhr, status, message);
         }
     });
   }
@@ -616,6 +740,9 @@ Drupal.services.call = function(options) {
         if (request.status != 200) { // Not OK
           console.log(url + " - " + title);
           console.log(request.responseText);
+          if (typeof options.error !== 'undefined') {
+            options.error(request, request.status, request.responseText);
+          }
         }
         else { // OK
           options.success(JSON.parse(request.responseText));
