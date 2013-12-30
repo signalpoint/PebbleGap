@@ -6,7 +6,7 @@ Pebble.addEventListener("ready", function(e) {
       
       /** Drupal Settings **/
       // Site Path, e.g. http://www.example.com (with no trailing slash)
-      Drupal.settings.site_path = "";
+      Drupal.settings.site_path = "http://www.tylerfrankenstein.com";
       
       // Initialize Drupal.
       drupal_bootstrap({
@@ -33,12 +33,52 @@ Pebble.addEventListener("ready", function(e) {
 });
 
 /**
+ * Pebble's appmessage event listener.
+ */
+Pebble.addEventListener("appmessage", function(e) {
+    try {
+      console.log("Received message!");
+      pebblegap_appmessage(e.payload);
+    }
+    catch (error) {
+      console.log('Pebble.addEventListener - appmessage - ' + error);
+    }
+});
+/**
+ * Handles Pebble's appmessage event listener.
+ */
+function pebblegap_appmessage(payload) {
+  try {
+    dpm(payload);
+    if (payload[pebblegap.BUTTON.DOWN]) {
+      dpm('down');
+    }
+    else if (payload[pebblegap.BUTTON.UP]) {
+      dpm('up');
+    }
+    else if (payload[pebblegap.BUTTON.SELECT]) {
+      dpm('select');
+    }
+  }
+  catch (error) {
+    console.log('pebblegap_appmessage - ' + error);
+  }
+}
+
+/**
  * Pebble's showConfiguration event listener.
  */
 Pebble.addEventListener("showConfiguration", function() {
     try {
-      var user_login = drupal_page_url('user.html');
-      Pebble.openURL(user_login);
+      var url = '';
+      if (Drupal.user.uid == 0) {
+        url = drupal_page_url('user.html');
+      }
+      else {
+        url = drupal_page_url('user.html#account');
+      }
+      dpm(url);
+      Pebble.openURL(url);
     }
     catch (error) {
       console.log('Pebble.addEventListener - showConfiguration - ' + error);
@@ -83,7 +123,12 @@ function drupal_webviewclosed(options) {
             }
         });
         break;
-      default:
+      case 'user_logout':
+        user_logout({
+            success:function(data) {
+              drupal_set_message('Logged out!');
+            }
+        });
         break;
     }
   }
@@ -95,6 +140,17 @@ function drupal_webviewclosed(options) {
 /**
  * Pebble + Drupal (https://github.com/signalpoint/pebble-drupal)
  */
+
+// The pebblegap JSON object.
+pebblegap = {
+  "BUTTON":{
+    "UP":"1",
+    "SELECT":"2",
+    "DOWN":"3"
+  }
+};
+ 
+// The Drupal JSON object.
 Drupal = {};
 Drupal.sessid = null;
 Drupal.user = drupal_user_defaults();
