@@ -1,44 +1,15 @@
-/**
- * PebbleGap's default settings, do not change values here. Instead specify your
- * settings inside the custom code section below.
- */
+// Initialize the Drupal JSON object.
 Drupal = drupal_init();
 
 /**
- * BEGIN: CUSTOM CODE GOES HERE
+ * BEGIN: Custom Code
  */
-
-/** Custom Drupal Settings **/
 
 // Site Path, e.g. http://www.example.com (with no trailing slash)
-Drupal.settings.site_path = "http://www.tylerfrankenstein.com";
+Drupal.settings.site_path = "";
 
 /**
- * Implements hook_ready().
- */
-function pebble_ready() {
-  try {
-    pebblegap_set_message('Hello World!');
-  }
-  catch (error) {
-    console.log('pebble_ready - ' + error);
-  }
-}
-
-/**
- * Implements hook_button_click_handler().
- */
-function pebble_button_click_handler(payload, options) {
-  try {
-    console.log("Button Clicked: " + options.button);
-  }
-  catch(error) {
-    console.log('pebble_button_click_handler - ' + error);
-  }
-}
-
-/**
- * END: CUSTOM CODE
+ * END: Custom Code
  */
  
 /******************|
