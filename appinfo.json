@@ -1,0 +1,18 @@
+{
+  "uuid": "a9618d4e-01d8-4755-8593-cf95d47bb1ba",
+  "shortName": "PebbleGap",
+  "longName": "PebbleGap",
+  "companyName": "Easy Street 3, LLC",
+  "versionCode": 1,
+  "versionLabel": "1.0.0",
+  "watchapp": {
+    "watchface": false
+  },
+  "appKeys": {
+    "dummy": 0
+  },
+  "resources": {
+    "media": []
+  },
+  "capabilities": [ "configurable" ]
+}
