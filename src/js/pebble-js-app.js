@@ -1,69 +1,134 @@
 /**
- * Pebble's "ready" event listener.
+ * PebbleGap's default settings, do not change values here. Instead specify your
+ * settings inside the custom code section below.
  */
-Pebble.addEventListener("ready", function(e) {
-    try {
-      
-      /** Drupal Settings **/
-      // Site Path, e.g. http://www.example.com (with no trailing slash)
-      Drupal.settings.site_path = "http://www.tylerfrankenstein.com";
-      
-      // Initialize Drupal.
-      drupal_bootstrap({
-          success:function(data){
-            
-            // PLACE YOUR CUSTOM CODE HERE...
-            
-            if (Drupal.user.uid == 0) {
-              // Anonymous user...
-            }
-            else {
-              // Authenticated user...
-              drupal_set_message("Hello, " + Drupal.user.name);
-            }
-            
-          }
-      });
+Drupal = drupal_init();
 
-    }
-    catch (error) {
-      console.log('Pebble.addEventListener - ready - ' + error);
-    }
+/**
+ * BEGIN: CUSTOM CODE GOES HERE
+ */
 
-});
+/** Custom Drupal Settings **/
+
+// Site Path, e.g. http://www.example.com (with no trailing slash)
+Drupal.settings.site_path = "http://www.tylerfrankenstein.com";
+
+/**
+ * Implements hook_ready().
+ */
+function pebble_ready() {
+  try {
+    pebblegap_set_message('Hello World!');
+  }
+  catch (error) {
+    console.log('pebble_ready - ' + error);
+  }
+}
+
+/**
+ * Implements hook_button_click_handler().
+ */
+function pebble_button_click_handler(payload, options) {
+  try {
+    console.log("Button Clicked: " + options.button);
+  }
+  catch(error) {
+    console.log('pebble_button_click_handler - ' + error);
+  }
+}
+
+/**
+ * END: CUSTOM CODE
+ */
+ 
+/******************|
+ *                 |
+ * PebbleGap Hooks |
+ *                 |
+ ******************/
+
+/**
+ * Implements hook_button_click_handler().
+ */
+function hook_button_click_handler(payload, options) {
+  try {
+    console.log("Button Clicked: " + options.button);
+  }
+  catch(error) {
+    console.log('pebble_button_click_handler - ' + error);
+  }
+}
+
+/**
+ * Implements hook_ready().
+ */
+function hook_ready() {
+  try {
+    pebblegap_set_message('Hello World!');
+  }
+  catch (error) {
+    console.log('pebble_ready - ' + error);
+  }
+}
+
+/*****************|
+ *                |
+ * PebbleGap Core |
+ *                |
+ *****************/
+
+/**
+ * PebbleGap JSON object.
+ */
+PebbleGap = {
+  "BUTTON":{
+    "UP":"1",
+    "SELECT":"2",
+    "DOWN":"3"
+  }
+};
+
+/**
+ * Set PebbleGap's default settings for Drupal, if they aren't already set.
+ */
+if (!Drupal.settings.endpoint) {
+  Drupal.settings.endpoint = "pebble";
+}
+if (!Drupal.settings.pebble_module_directory) {
+  Drupal.settings.pebble_module_directory = "sites/all/modules/pebble";
+}
 
 /**
  * Pebble's appmessage event listener.
  */
 Pebble.addEventListener("appmessage", function(e) {
     try {
-      console.log("Received message!");
       pebblegap_appmessage(e.payload);
     }
     catch (error) {
       console.log('Pebble.addEventListener - appmessage - ' + error);
     }
 });
+
 /**
- * Handles Pebble's appmessage event listener.
+ * Pebble's "ready" event listener.
  */
-function pebblegap_appmessage(payload) {
-  try {
-    dpm(payload);
-    if (payload[pebblegap.BUTTON.DOWN]) {
-      dpm('down');
+Pebble.addEventListener("ready", function(e) {
+    try {
+      pebblegap_bootstrap({
+          success:function(data){
+            var hook = 'pebble_ready';
+            if (function_exists(hook)) {
+              var fn = window[hook];
+              fn();
+            }
+          }
+      });
     }
-    else if (payload[pebblegap.BUTTON.UP]) {
-      dpm('up');
+    catch (error) {
+      console.log('Pebble.addEventListener - ready - ' + error);
     }
-    else if (payload[pebblegap.BUTTON.SELECT]) {
-      dpm('select');
-    }
-  }
-  catch (error) {
-    console.log('pebblegap_appmessage - ' + error);
-  }
-}
+});
 
 /**
  * Pebble's showConfiguration event listener.
@@ -72,10 +137,10 @@ Pebble.addEventListener("showConfiguration", function() {
     try {
       var url = '';
       if (Drupal.user.uid == 0) {
-        url = drupal_page_url('user.html');
+        url = pebblegap_page_url('user.html');
       }
       else {
-        url = drupal_page_url('user.html#account');
+        url = pebblegap_page_url('user.html#account');
       }
       dpm(url);
       Pebble.openURL(url);
@@ -91,7 +156,7 @@ Pebble.addEventListener("showConfiguration", function() {
 Pebble.addEventListener("webviewclosed", function(e) {
     try {
       if (e.response) {
-        drupal_webviewclosed(JSON.parse(decodeURIComponent(e.response)));
+        pebblegap_webviewclosed(JSON.parse(decodeURIComponent(e.response)));
       }
     }
     catch (error) {
@@ -100,9 +165,89 @@ Pebble.addEventListener("webviewclosed", function(e) {
 });
 
 /**
+ * Handles Pebble's appmessage event listener.
+ */
+function pebblegap_appmessage(payload) {
+  try {
+    // Determine the payload, and if a hook is implemented, call it.
+    var button = false;
+    if (payload[PebbleGap.BUTTON.DOWN]) { button = 'down'; }
+    else if (payload[PebbleGap.BUTTON.UP]) { button = 'up'; }
+    else if (payload[PebbleGap.BUTTON.SELECT]) { button = 'select'; }
+    var hook = false;
+    var options = {};
+    if (button) {
+      hook = 'pebble_button_click_handler';
+      options.button = button;
+    }
+    if (function_exists(hook)) {
+      var fn = window[hook];
+      fn(payload, options);
+    }
+  }
+  catch (error) {
+    console.log('pebblegap_appmessage - ' + error);
+  }
+}
+
+/**
+ * The bootstrap function for Pebble and Drupal.
+ */
+function pebblegap_bootstrap(options) {
+  try {
+    // Make sure the site_path is set.
+    if (Drupal.settings.site_path == "") {
+      pebblegap_set_message("The Drupal site_path is not set!");
+    }
+    else {
+      // Call system connect and return to Pebble's "ready" event handler.
+      system_connect({
+          success:options.success
+      });
+    }
+  }
+  catch (error) {
+    console.log('pebblegap_bootstrap - ' + error);
+  }
+};
+
+/**
+ *
+ */
+function pebblegap_page_url(page) {
+  try {
+    return Drupal.settings.site_path + 
+         Drupal.settings.base_path +
+         Drupal.settings.pebble_module_directory + '/pages/' + page;
+  }
+  catch (error) {
+    console.log('pebblegap_page_url - ' + error);
+  }
+}
+
+/**
+ * Given a string, this will display a simple notification on Pebble. You may
+ * optionally pass in a second argument as a JSON object, with these properties:
+ *   title - a string to display as the title of the notification.
+ */
+function pebblegap_set_message(message) {
+  try {
+    var title = "Message";
+    if (arguments[1]) {
+      var options = arguments[1];
+      if (options.title) { title = options.title; }
+    }
+    Pebble.showSimpleNotificationOnPebble(title, message);
+  }
+  catch (error) {
+    console.log('pebblegap_set_message - ' + error);
+  }
+}
+
+/**
  * The handler for Pebble's webviewclosed event listener.
  */
-function drupal_webviewclosed(options) {
+function pebblegap_webviewclosed(options) {
   try {
     switch (options.page) {
       case 'user_login':
@@ -110,7 +255,7 @@ function drupal_webviewclosed(options) {
             "name":options.name,
             "pass":options.pass,
             success:function(data) {
-              drupal_set_message('You logged in ' + Drupal.user.name + '!');
+              pebblegap_set_message('You logged in ' + Drupal.user.name + '!');
             }
         });
         break;
@@ -119,80 +264,115 @@ function drupal_webviewclosed(options) {
             "name":options.name,
             "mail":options.mail,
             success:function(data) {
-              drupal_set_message('Registered user #' + data.uid + '!');
+              pebblegap_set_message('Registered user #' + data.uid + '!');
             }
         });
         break;
       case 'user_logout':
         user_logout({
             success:function(data) {
-              drupal_set_message('Logged out!');
+              pebblegap_set_message('Logged out!');
             }
         });
         break;
     }
   }
   catch (error) {
-    console.log('drupal_webviewclosed - ' + error);
+    console.log('pebblegap_webviewclosed - ' + error);
   }
 }
 
-/**
- * Pebble + Drupal (https://github.com/signalpoint/pebble-drupal)
- */
+/**************|
+ *             |
+ * Drupal Core |
+ *             |
+ ***************/
 
-// The pebblegap JSON object.
-pebblegap = {
-  "BUTTON":{
-    "UP":"1",
-    "SELECT":"2",
-    "DOWN":"3"
-  }
-};
- 
-// The Drupal JSON object.
-Drupal = {};
+/**
+ * Add additional properties to the Drupal JSON object.
+ */
 Drupal.sessid = null;
 Drupal.user = drupal_user_defaults();
 
 /**
- * Default settings. Do not change values here, instead change the values in
- * your "ready" EventListener for Pebble.
+ * Given a JSON object or string, this will print it to the console.
  */
-Drupal.settings = {
-  site_path:"",
-  base_path:"/",
-  endpoint:"pebble",
-  pebble_module_directory:"sites/all/modules/pebble"
-};
+function dpm(data) {
+  if (data) {
+    if (typeof data === 'object') { console.log(JSON.stringify(data)); }
+    else { console.log(data); }
+  }
+}
 
 /**
- * The bootstrap function for Pebble and Drupal.
+ * Returns a default JSON object for Drupal.
  */
-function drupal_bootstrap(options) {
+function drupal_init() {
+  return {
+    settings:{
+      site_path:"",
+      base_path:"/"
+    }
+  };
+}
+
+/**
+ * Returns a default JSON object representing an anonymous Drupal user account.
+ */
+function drupal_user_defaults() {
+  return {
+    "uid":"0",
+    "roles":{"1":"anonymous user"}
+  };
+}
+
+/**
+ * Given a JS function name, this returns true if the function exists in the
+ * scope, false otherwise.
+ */
+function function_exists(name) {
   try {
-    // Make sure the site_path is set.
-    if (Drupal.settings.site_path == "") {
-      drupal_set_message("The Drupal site_path is not set!");
-    }
-    else {
-      /*user_logout({
-          success:options.success
-      });*/
-      // Call system connect and return to Pebble's "ready" event handler.
-      system_connect({
-          success:options.success
-      });
-    }
+    return (eval('typeof ' + name) == 'function');
   }
   catch (error) {
-    console.log('drupal_bootstrap - ' + error);
+    alert('function_exists - ' + error);
   }
-};
+}
 
 /**
- * BEGIN: Drupal Service Resource Implementations
+ * Given an integer http status code, this will return the title of it.
  */
+function http_status_code_title(status) {
+  try {
+    var title = "";
+    switch (status) {
+      case 200: title = "OK"; break;
+      case 401: title = "Unauthorized"; break;
+      case 404: title = "Not Found"; break;
+    }
+    return title;  
+  }
+  catch (error) {
+    console.log('http_status_code_title - ' + error);
+  }
+}
+
+/**
+ * Checks if the needle string, is in the haystack array. Returns true if it is
+ * found, false otherwise. Credit: http://stackoverflow.com/a/15276975/763010
+ */
+function in_array(needle, haystack) {
+  return (haystack.indexOf(needle) > -1);
+}
+
+/***********************|
+ *                      |
+ * Drupal Services Core |
+ *                      |
+ ***********************/
+
+Drupal.services = {};
+
 // System Connect
 function system_connect(options) {
   try {
@@ -200,7 +380,6 @@ function system_connect(options) {
         method:"POST",
         path:"system/connect.json",
         success:function(data){
-          dpm(data);
           Drupal.user = data.user;
           options.success(data);
         }
@@ -230,9 +409,8 @@ function user_login(options) {
             if (token_request.readyState == 4) {
               var title = token_request.status + " - " +
                 http_status_code_title(token_request.status);
-              console.log(title);
               if (token_request.status != 200) { // Not OK
-                drupal_set_message('user_login - ' + token_url, {"title":title});
+                console.log('user_login - ' + token_url + ' - ' + title);
               }
               else { // OK
                 // Save the token to local storage as sessid, set Drupal.sessid
@@ -304,83 +482,6 @@ function user_register(options) {
     console.log('user_register - ' + error);
   }
 }
-/**
- * END
- */
-
-/**
- * Given a JSON object or string, this will print it to the console.
- */
-function dpm(data) {
-  if (data) {
-    if (typeof data === 'object') { console.log(JSON.stringify(data)); }
-    else { console.log(data); }
-  }
-}
-
-/**
- *
- */
-function drupal_page_url(page) {
-  return Drupal.settings.site_path + 
-         Drupal.settings.base_path +
-         Drupal.settings.pebble_module_directory + '/pages/' + page;
-}
-
-/**
- * Given a string, this will display a simple notification on Pebble. You may
- * optionally pass in a second argument as a JSON object, with these properties:
- *   title - a string to display as the title of the notification.
- */
-function drupal_set_message(message) {
-  var title = "Message";
-  if (arguments[1]) {
-    var options = arguments[1];
-    if (options.title) { title = options.title; }
-  }
-  Pebble.showSimpleNotificationOnPebble(title, message);
-}
-
-/**
- * Returns a default JSON object representing an anonymous Drupal user account.
- */
-function drupal_user_defaults() {
-  return {
-    "uid":"0",
-    "roles":{"1":"anonymous user"}
-  };
-}
-
-/**
- * Given an integer http status code, this will return the title of it.
- */
-function http_status_code_title(status) {
-  try {
-    var title = "";
-    switch (status) {
-      case 200: title = "OK"; break;
-      case 401: title = "Unauthorized"; break;
-      case 404: title = "Not Found"; break;
-    }
-    return title;  
-  }
-  catch (error) {
-    console.log('http_status_code_title - ' + error);
-  }
-}
-
-/**
- * Checks if the needle string, is in the haystack array. Returns true if it is
- * found, false otherwise. Credit: http://stackoverflow.com/a/15276975/763010
- */
-function in_array(needle, haystack) {
-  return (haystack.indexOf(needle) > -1);
-}
-
-/**
- * Drupal Services
- */
-Drupal.services = {};
 
 /**
  * Drupal Services XMLHttpRequest Object
@@ -400,9 +501,8 @@ Drupal.services.call = function(options) {
       if (request.readyState == 4) {
         var title = request.status + " - " +
           http_status_code_title(request.status);
-        console.log(title);
         if (request.status != 200) { // Not OK
-          drupal_set_message(url, {"title":title});
+          console.log(url + " - " + title);
         }
         else { // OK
           options.success(JSON.parse(request.responseText));
@@ -451,7 +551,6 @@ Drupal.services.call = function(options) {
 Drupal.services.csrf_token = function(method, url, request, options) {
   try {
     var token = false;
-    dpm(options);
     // Do we potentially need a token for this call? We most likely need one if
     // the call option's type is not one of these types.
     if (!in_array(method, ['GET', 'HEAD', 'OPTIONS', 'TRACE'])) {
@@ -486,7 +585,7 @@ Drupal.services.csrf_token = function(method, url, request, options) {
               http_status_code_title(token_request.status);
             console.log('TOKEN REQUEST COMPLETE: ' + title);
             if (token_request.status != 200) { // Not OK
-              drupal_set_message(token_url, {"title":title});
+              console.log(token_url + " - " + title);
             }
             else { // OK
               // Save the token to local storage as sessid, set Drupal.sessid
@@ -529,3 +628,4 @@ Drupal.services.csrf_token = function(method, url, request, options) {
     console.log('Drupal.services.call - error - ' + error);
   }
 };
+
