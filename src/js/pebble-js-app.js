@@ -6,7 +6,47 @@ Drupal = drupal_init();
  */
 
 // Site Path, e.g. http://www.example.com (with no trailing slash)
-Drupal.settings.site_path = "";
+Drupal.settings.site_path = "http://www.tylerfrankenstein.com";
+
+/**
+ * Implements hook_ready().
+ */
+function pebble_ready() {
+  try {
+  }
+  catch (error) {
+    console.log('pebble_ready - ' + error);
+  }
+}
+
+/**
+ * Implements hook_button_click_handler().
+ */
+function pebble_button_click_handler(payload, options) {
+  try {
+    switch (options.button) {
+      case 'up':
+        break;
+      case 'down':
+        break;
+      case 'select':
+        var node = {
+          type:"article",
+          title:"Pebble Node"
+        };
+        node_save(node, {
+            success:function(data){
+              pebblegap_set_message(data.nid, {title:"Node saved!"});
+            }
+        });
+        break;
+    }
+    console.log("Button Clicked: " + options.button);
+  }
+  catch(error) {
+    console.log('pebble_button_click_handler - ' + error);
+  }
+}
 
 /**
  * END: Custom Code
@@ -35,7 +75,14 @@ function hook_button_click_handler(payload, options) {
  */
 function hook_ready() {
   try {
-    pebblegap_set_message('Hello World!');
+    var message = '';
+    if (Drupal.user.uid == 0) {
+      message = 'Hello World!';
+    }
+    else {
+      message = 'Hello ' + Drupal.user.name + '!';
+    }
+    pebblegap_set_message(message);
   }
   catch (error) {
     console.log('pebble_ready - ' + error);
@@ -282,7 +329,8 @@ function drupal_init() {
   return {
     settings:{
       site_path:"",
-      base_path:"/"
+      base_path:"/",
+      language_default:"und"
     }
   };
 }
@@ -295,6 +343,47 @@ function drupal_user_defaults() {
     "uid":"0",
     "roles":{"1":"anonymous user"}
   };
+}
+
+/**
+ *
+ */
+function entity_assemble_data(entity_type, bundle, entity, options) {
+  try {
+    var data = '';
+    for (var property in entity) {
+      console.log(property);
+      if (entity.hasOwnProperty(property)) {
+        data += property + '=' + encodeURIComponent(entity[property]) + '&';
+      }
+    }
+    if (data != '') { data = data.substring(0, data.length - 1); }
+    return data;
+  }
+  catch (error) { console.log('entity_assemble_data - ' + error); }
+}
+
+/**
+ *
+ */
+function entity_save(entity_type, bundle, entity, options) {
+  try {
+    switch(entity_type) {
+      case 'node':
+        if (!entity.language) { entity.language = language_default(); }
+        if (!entity.nid) {
+          node_create(entity, options);
+        }
+        else {
+          node_update(entity, options);
+        }
+        break;
+      default:
+        console.log('WARNING: entity_save - unsupported type: ' + entity_type);
+        break;
+    }
+  }
+  catch (error) { console.log('entity_save - ' + error); }
 }
 
 /**
@@ -320,12 +409,33 @@ function http_status_code_title(status) {
       case 200: title = "OK"; break;
       case 401: title = "Unauthorized"; break;
       case 404: title = "Not Found"; break;
+      case 406: title = "Not Acceptable"; break;
     }
     return title;  
   }
   catch (error) {
     console.log('http_status_code_title - ' + error);
   }
+}
+
+/**
+ *
+ */
+function language_default() {
+  try {
+    return Drupal.settings.language_default;
+  }
+  catch (error) { console.log('language_default - ' + error); }
+}
+
+/**
+ *
+ */
+function node_save(node, options) {
+  try {
+    entity_save('node', node.type, node, options);
+  }
+  catch (error) { console.log('entity_save - ' + error); }
 }
 
 /**
@@ -344,6 +454,35 @@ function in_array(needle, haystack) {
 
 Drupal.services = {};
 
+/**
+ *
+ */
+function entity_create(entity_type, bundle, entity, options) {
+  try {
+    Drupal.services.call({
+        method:options.method,
+        path:options.path,
+        data:entity_assemble_data(entity_type, bundle, entity, options),
+        success:function(data){
+          options.success(data);
+        }
+    });
+  }
+  catch (error) { console.log('entity_create - ' + error); }
+}
+
+/**
+ *
+ */
+function node_create(node, options) {
+  try {
+    options.method = "POST";
+    options.path = "node.json";
+    entity_create('node', node.type, node, options);
+  }
+  catch (error) { console.log('node_create - ' + error); }
+}
+
 // System Connect
 function system_connect(options) {
   try {
@@ -360,6 +499,7 @@ function system_connect(options) {
     console.log('system_connect - ' + error);
   }
 }
+
 // User Login
 function user_login(options) {
   try {
@@ -382,6 +522,7 @@ function user_login(options) {
                 http_status_code_title(token_request.status);
               if (token_request.status != 200) { // Not OK
                 console.log('user_login - ' + token_url + ' - ' + title);
+                console.log(token_request.responseText);
               }
               else { // OK
                 // Save the token to local storage as sessid, set Drupal.sessid
@@ -474,6 +615,7 @@ Drupal.services.call = function(options) {
           http_status_code_title(request.status);
         if (request.status != 200) { // Not OK
           console.log(url + " - " + title);
+          console.log(request.responseText);
         }
         else { // OK
           options.success(JSON.parse(request.responseText));
@@ -505,6 +647,7 @@ Drupal.services.call = function(options) {
             request.setRequestHeader("X-CSRF-Token", token);
           }
           if (typeof options.data !== 'undefined') {
+            if (options.path != 'user/login.json') { console.log(options.data); }
             request.send(options.data);
           }
           else { request.send(null); }      
@@ -557,6 +700,7 @@ Drupal.services.csrf_token = function(method, url, request, options) {
             console.log('TOKEN REQUEST COMPLETE: ' + title);
             if (token_request.status != 200) { // Not OK
               console.log(token_url + " - " + title);
+              console.log(token_request.responseText);
             }
             else { // OK
               // Save the token to local storage as sessid, set Drupal.sessid
