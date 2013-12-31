@@ -12,7 +12,7 @@ Drupal.settings.site_path = "";
  * BEGIN: Custom Code
  */
 
-// Place your custom code here... 
+// Place your custom code here...
 
 /**
  * END: Custom Code
@@ -76,6 +76,12 @@ function hook_ready() {
     console.log('pebble_ready - ' + error);
   }
 }
+
+/*****************|
+ *                |
+ * PebbleGap Code |
+ *                |
+ *****************/
 
 /**
  * PebbleGap JSON object.
@@ -396,6 +402,23 @@ function entity_assemble_data(entity_type, bundle, entity, options) {
     return data;
   }
   catch (error) { console.log('entity_assemble_data - ' + error); }
+}
+
+/**
+ *
+ */
+function entity_delete(entity_type, ids, options) {
+  try {
+    var function_name = entity_type + '_delete';
+    if (function_exists(function_name)) {
+      var fn = window[function_name];
+      fn(ids, options);
+    }
+    else {
+      console.log('WARNING: entity_delete - unsupported type: ' + entity_type);
+    }
+  }
+  catch (error) { console.log('entity_delete - ' + error); }
 }
 
 /**
@@ -732,6 +755,25 @@ function node_update(node, options) {
     entity_update('node', node.type, node, options);
   }
   catch (error) { console.log('node_update - ' + error); }
+}
+
+/**
+ *
+ */
+function node_delete(nid, options) {
+  try {
+    Drupal.services.call({
+        method:"DELETE",
+        path:"node/" + nid + ".json",
+        success:function(data){
+          if (options.success) { options.success(data); }
+        },
+        error:function(xhr, status, message) {
+          if (options.error) { options.error(xhr, status, message); }
+        }
+    });
+  }
+  catch (error) { console.log('node_delete - ' + error); }
 }
 
 // System Connect
