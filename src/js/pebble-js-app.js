@@ -1,18 +1,19 @@
-// Initialize the the jDrupal JSON object.
+// Initialize the Drupal JSON object from jDrupal.
 var Drupal = Drupal || drupal_init(); // Do not remove this line!
-
-/**
- * Drupal Settings
- */
-
-// Site Path, e.g. http://www.example.com (with no trailing slash)
-Drupal.settings.site_path = "";
+// Initialize the PebbleGap JSON object.
+var PebbleGap = PebbleGap || pebblegap_init(); // Do not remove this line!
 
 /**
  * BEGIN: Custom Code
  */
 
-// Place your custom code here...
+// Site Path. (Do not use a trailing slash)
+Drupal.settings.site_path = ""; // http://www.example.com
+
+// Services endpoint path.
+Drupal.settings.endpoint = "pebble";
+
+// Place your custom code here... try implementing hook_ready() for starters.
 
 /**
  * END: Custom Code
@@ -23,6 +24,22 @@ Drupal.settings.site_path = "";
  * PebbleGap Core |
  *                |
  *****************/
+
+/**
+ * The code below is what powers PebbleGap core. For now, the PebbleKit JS
+ * Framework only allows us to use one JavaScript file to power our Pebble App.
+ * This means all of our code has to live in one file. We imagine (and hope)
+ * this will not be the case in the future. Feel free to make modifications to
+ * the code below and tell us about your changes to help us make PebbleGap
+ * better!
+ *
+ * PebbleGap is also powered by jDrupal, a JavaScript Library for Drupal. So
+ * the jDrupal source code must also be included in this file. See the "jDrupal"
+ * section below, it is under all of PebbleGap core code.
+ *
+ * Download jDrupal: http://www.easystreet3.com/jDrupal
+ *
+ */
  
 /******************|
  *                 |
@@ -30,13 +47,36 @@ Drupal.settings.site_path = "";
  *                 |
  ******************/
 
-// To implement a PebbleGap hook, copy the hook's function template from below
-// and paste it into your custom code section above. Then replace the 'hook_'
-// with 'pebble_' in your function name.
-// 
-// For example, to implement hook_ready(), copy the hook_ready() function below,
-// paste it into your custom code section above, then change the pasted code's
-// function name from hook_ready to pebble_ready.
+/**
+ * To implement a PebbleGap hook, copy the hook's function template from below
+ * and paste it into your custom code section above. Then replace the 'hook_'
+ * with 'pebble_' in your function name.
+ * 
+ * For example, to implement hook_ready(), copy the hook_ready() function below,
+ * paste it into your custom code section above, then change the pasted code's
+ * function name from hook_ready to pebble_ready. The code contained within the
+ * functions below is just example code, feel free to add/edit/remove it. But it
+ * is recommended to keep the try/catch clause for error handling.  
+ */
+
+/**
+ * Implements hook_ready().
+ */
+function hook_ready() {
+  try {
+    var message = '';
+    if (Drupal.user.uid == 0) {
+      message = 'Hello World!';
+    }
+    else {
+      message = 'Hello ' + Drupal.user.name + '!';
+    }
+    pebble_set_message(message);
+  }
+  catch (error) {
+    console.log('pebble_ready - ' + error);
+  }
+}
 
 /**
  * Implements hook_button_click_handler().
@@ -59,22 +99,33 @@ function hook_button_click_handler(payload, options) {
 }
 
 /**
- * Implements hook_ready().
+ * Implements hook_user_login().
  */
-function hook_ready() {
+function hook_user_login(result) {
   try {
-    var message = '';
-    if (Drupal.user.uid == 0) {
-      message = 'Hello World!';
-    }
-    else {
-      message = 'Hello ' + Drupal.user.name + '!';
-    }
-    pebble_set_message(message);
+    pebble_set_message('Hi, ' + Drupal.user.name);
   }
-  catch (error) {
-    console.log('pebble_ready - ' + error);
+  catch (error) { console.log('pebble_user_login - ' + error); }
+}
+
+/**
+ * Implements hook_user_logout().
+ */
+function hook_user_logout(result) {
+  try {
+    pebble_set_message('Logged out!');
   }
+  catch (error) { console.log('pebble_user_logout - ' + error); }
+}
+
+/**
+ * Implements hook_user_register().
+ */
+function hook_user_register(result) {
+  try {
+    pebble_set_message('Account registered!');
+  }
+  catch (error) { console.log('pebble_user_register - ' + error); }
 }
 
 /*****************|
@@ -84,24 +135,29 @@ function hook_ready() {
  *****************/
 
 /**
- * PebbleGap JSON object.
+ * Returns the PebbleGap
  */
-PebbleGap = {
-  "BUTTON":{
-    "UP":"1",
-    "SELECT":"2",
-    "DOWN":"3"
+function pebblegap_init() {
+  try {
+    return {
+      "BUTTON":{
+        "UP":"1",
+        "SELECT":"2",
+        "DOWN":"3"
+      },
+      settings: {
+        pages_path: 'sites/all/modules/pebble'
+      }
+    };
   }
-};
+  catch (error) { console.log('pebblegap_init - ' + error); }
+}
 
 /**
  * Set PebbleGap's default settings for Drupal, if they aren't already set.
  */
 if (!Drupal.settings.endpoint) {
   Drupal.settings.endpoint = "pebble";
-}
-if (!Drupal.settings.pebble_module_directory) {
-  Drupal.settings.pebble_module_directory = "sites/all/modules/pebble";
 }
 
 /**
@@ -224,7 +280,7 @@ function pebble_page_url(page) {
   try {
     return Drupal.settings.site_path + 
          Drupal.settings.base_path +
-         Drupal.settings.pebble_module_directory + '/pages/' + page;
+         PebbleGap.settings.pages_path + '/pages/' + page;
   }
   catch (error) {
     console.log('pebble_page_url - ' + error);
@@ -255,13 +311,14 @@ function pebble_set_message(message) {
  */
 function pebble_webviewclosed(options) {
   try {
+    dpm('Closed page: ' + options.page);
     switch (options.page) {
       case 'user_login':
-        user_login({
-            "name":options.name,
-            "pass":options.pass,
-            success:function(data) {
-              pebble_set_message('Hi, ' + Drupal.user.name + '!');
+        user_login(options.name, options.pass, {
+            success:function(result) {
+              if (function_exists('pebble_user_login')) {
+                pebble_user_login(result);
+              }
             },
             error:function(xhr, status, message) {
               pebble_set_message(message);
@@ -274,15 +331,25 @@ function pebble_webviewclosed(options) {
           "mail":options.mail
         };
         user_register(account, {
-            success:function(data) {
-              pebble_set_message('Registered user #' + data.uid + '!');
+            success:function(result) {
+              if (function_exists('pebble_user_register')) {
+                pebble_user_register(result);
+              }
+            },
+            error:function(xhr, status, message) {
+              pebble_set_message(message);
             }
         });
         break;
       case 'user_logout':
         user_logout({
-            success:function(data) {
-              pebble_set_message('Logged out!');
+            success:function(result) {
+              if (function_exists('pebble_user_logout')) {
+                pebble_user_logout(result);
+              }
+            },
+            error:function(xhr, status, message) {
+              pebble_set_message(message);
             }
         });
         break;
@@ -299,11 +366,14 @@ function pebble_webviewclosed(options) {
  *         |
  **********/
 
-// All of the code below is a copy of jDrupal.js available here:
-//   https://github.com/easystreet3/DrupalJS/blob/7.x-1.x/jDrupal.js
-//
-// Since the PebbleKit Javascript Framework currently only allows one .js file
-// to power a Pebble App, we must copy the contents of the jDrupal.js and paste
-// it below.
+/**
+ * Since the PebbleKit Javascript Framework currently only allows one .js file
+ * to power a Pebble App, we must copy the contents of the jdrupal.js file (or
+ * the jdrupal.min.js file) and paste its content below.
+ *
+ * Download jDrupal: http://www.easystreet3.com/jDrupal
+ *
+ */
 
+// Paste the contents of jdrupal.js here...
 
