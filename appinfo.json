@@ -14,5 +14,5 @@
   "resources": {
     "media": []
   },
-  "capabilities": [ "configurable" ]
+  "capabilities": [ "configurable", "location" ]
 }
